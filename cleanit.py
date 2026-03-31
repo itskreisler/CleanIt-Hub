@@ -41,6 +41,32 @@ def format_size(size_bytes):
         return f"{size_bytes / 1024:.0f} KB"
 
 
+def add_row(self, list_box, name, path, size):
+    row = Gtk.ListBoxRow()
+    box = Gtk.Box(spacing=10)
+    box.set_margin_top(10)
+    box.set_margin_bottom(10)
+    box.set_margin_start(10)
+    box.set_margin_end(10)
+    row.set_child(box)
+
+    check = Gtk.CheckButton()
+    check.set_active(True)
+    check.connect("toggled", lambda x: self.update_total())
+    box.append(check)
+
+    label = Gtk.Label(label=f"{name}\n{format_size(size)}\n{path}", xalign=0)
+    label.set_hexpand(True)
+    box.append(label)
+
+    list_box.append(row)
+    self.check_map[check] = {"path": path, "size": size}
+    if not hasattr(self, "scanned_rows"):
+        self.scanned_rows = []
+    self.scanned_rows.append(row)
+    self.update_total()
+
+
 class CleanItApp(Gtk.Application):
     def __init__(self):
         super().__init__(application_id="com.galestrike.hub")
@@ -64,6 +90,12 @@ class CleanItApp(Gtk.Application):
 
         self.build_ui()
         self.win.present()
+
+    def update_total(self):
+        if hasattr(self, "check_map") and self.check_map:
+            total = sum(d["size"] for c, d in self.check_map.items() if c.get_active())
+            if hasattr(self, "status_label"):
+                self.status_label.set_label(f"{format_size(total)} selected")
 
     def build_ui(self):
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
