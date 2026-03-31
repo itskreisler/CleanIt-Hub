@@ -186,7 +186,10 @@ class CleanItApp(Gtk.Application):
         dialog.set_modal(True)
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        box.set_margin(20)
+        box.set_margin_top(20)
+        box.set_margin_bottom(20)
+        box.set_margin_start(20)
+        box.set_margin_end(20)
         dialog.set_child(box)
 
         dialog.set_title("Clean Temp Files")
@@ -229,7 +232,10 @@ class CleanItApp(Gtk.Application):
         dialog.set_modal(True)
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        box.set_margin(20)
+        box.set_margin_top(20)
+        box.set_margin_bottom(20)
+        box.set_margin_start(20)
+        box.set_margin_end(20)
         dialog.set_child(box)
 
         dialog.set_title("Clean Thumbnails")
@@ -316,7 +322,10 @@ class CleanItApp(Gtk.Application):
         dialog.set_modal(True)
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        box.set_margin(20)
+        box.set_margin_top(20)
+        box.set_margin_bottom(20)
+        box.set_margin_start(20)
+        box.set_margin_end(20)
         dialog.set_child(box)
 
         dialog.set_title("Files > 100 MB")
