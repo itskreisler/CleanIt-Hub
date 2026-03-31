@@ -13,6 +13,8 @@ from gi.repository import Gtk, Gdk
 
 APT_DIR = "/var/cache/apt/archives"
 CACHE_DIR = os.path.expanduser("~/.cache")
+TEMP_DIRS = ["/tmp", os.path.expanduser("~/.cache")]
+THUMBNAILS_DIR = os.path.expanduser(".cache/thumbnails")
 
 
 def get_folder_size(path):
@@ -104,6 +106,21 @@ class CleanItApp(Gtk.Application):
         btn_cache.connect("clicked", self.open_cleaner)
         main_box.append(btn_cache)
 
+        btn_temp = Gtk.Button(label="Temp Files")
+        btn_temp.set_css_classes(["orange-btn"])
+        btn_temp.connect("clicked", self.open_temp_cleaner)
+        main_box.append(btn_temp)
+
+        btn_thumb = Gtk.Button(label="Thumbnails")
+        btn_thumb.set_css_classes(["orange-btn"])
+        btn_thumb.connect("clicked", self.open_thumbnail_cleaner)
+        main_box.append(btn_thumb)
+
+        btn_large = Gtk.Button(label="Large Files")
+        btn_large.set_css_classes(["orange-btn"])
+        btn_large.connect("clicked", self.find_large_files)
+        main_box.append(btn_large)
+
         btn_update = Gtk.Button(label="Update CleanIt")
         btn_update.connect("clicked", self.update_app)
         main_box.append(btn_update)
@@ -162,34 +179,93 @@ class CleanItApp(Gtk.Application):
 
         dialog.present()
 
-    def add_row(self, list_box, name, path, size):
-        row = Gtk.ListBoxRow()
-        box = Gtk.Box(spacing=10)
-        box.set_margin_top(10)
-        box.set_margin_bottom(10)
-        box.set_margin_start(10)
-        box.set_margin_end(10)
-        row.set_child(box)
+    def open_temp_cleaner(self, btn):
+        dialog = Gtk.Window(title="Temp Files")
+        dialog.set_default_size(400, 500)
+        dialog.set_transient_for(self.win)
+        dialog.set_modal(True)
 
-        check = Gtk.CheckButton()
-        check.set_active(True)
-        check.connect("toggled", lambda x: self.update_total())
-        box.append(check)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        box.set_margin(20)
+        dialog.set_child(box)
 
-        label = Gtk.Label(label=f"{name}\n{format_size(size)}\n{path}", xalign=0)
-        label.set_hexpand(True)
-        box.append(label)
+        dialog.set_title("Clean Temp Files")
+        header = Gtk.HeaderBar()
+        dialog.set_titlebar(header)
 
-        list_box.append(row)
-        self.check_map[check] = {"path": path, "size": size}
-        self.scanned_rows.append(row)
-        self.update_total()
+        self.check_map.clear()
 
-    def update_total(self):
-        total = sum(d["size"] for c, d in self.check_map.items() if c.get_active())
-        self.status_label.set_label(f"{format_size(total)} selected")
+        self.status_label = Gtk.Label(label="0 MB selected")
+        box.append(self.status_label)
+
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_vexpand(True)
+        box.append(scroller)
+
+        list_box = Gtk.ListBox()
+        scroller.set_child(list_box)
+
+        for temp_path in TEMP_DIRS:
+            if os.path.exists(temp_path):
+                size = get_folder_size(temp_path)
+                name = (
+                    os.path.basename(temp_path)
+                    if temp_path.startswith("/home")
+                    else temp_path
+                )
+                self.add_row(list_box, name + " (" + temp_path + ")", temp_path, size)
+
+        btn_clean = Gtk.Button(label="Clean Temp Files")
+        btn_clean.set_css_classes(["orange-btn"])
+        btn_clean.connect("clicked", lambda x: self.clean_selected(dialog))
+        box.append(btn_clean)
+
+        dialog.present()
+
+    def open_thumbnail_cleaner(self, btn):
+        dialog = Gtk.Window(title="Thumbnails")
+        dialog.set_default_size(400, 400)
+        dialog.set_transient_for(self.win)
+        dialog.set_modal(True)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        box.set_margin(20)
+        dialog.set_child(box)
+
+        dialog.set_title("Clean Thumbnails")
+        header = Gtk.HeaderBar()
+        dialog.set_titlebar(header)
+
+        self.check_map.clear()
+
+        size = get_folder_size(THUMBNAILS_DIR)
+        list_box = Gtk.ListBox()
+        box.append(list_box)
+        self.add_row(list_box, "Thumbnails Cache", THUMBNAILS_DIR, size)
+
+        btn_clean = Gtk.Button(label="Clean Thumbnails")
+        btn_clean.set_css_classes(["orange-btn"])
+        btn_clean.connect("clicked", lambda x: self.clean_thumbnails(dialog))
+        box.append(btn_clean)
+
+        dialog.present()
+
+    def clean_thumbnails(self, dialog):
+        freed = 0
+        for c, d in self.check_map.items():
+            if c.get_active() and d["size"] > 0:
+                try:
+                    if os.path.exists(d["path"]):
+                        shutil.rmtree(d["path"])
+                        freed += d["size"]
+                except:
+                    pass
+        dialog.close()
+        dialog.destroy()
+        self.show_summary(freed)
 
     def clean_selected(self, dialog):
+        freed = 0
         for c, d in self.check_map.items():
             if c.get_active() and d["size"] > 0:
                 try:
@@ -199,10 +275,97 @@ class CleanItApp(Gtk.Application):
                 try:
                     if os.path.exists(d["path"]):
                         shutil.rmtree(d["path"])
+                        freed += d["size"]
                 except:
                     pass
         dialog.close()
         dialog.destroy()
+        self.show_summary(freed)
+
+    def show_summary(self, freed):
+        dialog = Gtk.Window(title="Cleanup Complete")
+        dialog.set_default_size(350, 250)
+        dialog.set_transient_for(self.win)
+        dialog.set_modal(True)
+
+        box = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            spacing=15,
+            halign=Gtk.Align.CENTER,
+            valign=Gtk.Align.CENTER,
+        )
+        box.set_margin(30)
+        dialog.set_child(box)
+
+        label = Gtk.Label()
+        label.set_markup(
+            f"<span size='28000' weight='bold'>✅ Cleaned</span>\n\n<span size='20000' foreground='#FF4500'>{format_size(freed)}</span>\n<span size='14000'>freed disk space</span>"
+        )
+        box.append(label)
+
+        btn_close = Gtk.Button(label="Close")
+        btn_close.connect("clicked", lambda x: dialog.close())
+        box.append(btn_close)
+
+        dialog.present()
+
+    def find_large_files(self, btn):
+        dialog = Gtk.Window(title="Large Files")
+        dialog.set_default_size(500, 600)
+        dialog.set_transient_for(self.win)
+        dialog.set_modal(True)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        box.set_margin(20)
+        dialog.set_child(box)
+
+        dialog.set_title("Files > 100 MB")
+        header = Gtk.HeaderBar()
+        dialog.set_titlebar(header)
+
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_vexpand(True)
+        box.append(scroller)
+
+        list_box = Gtk.ListBox()
+        scroller.set_child(list_box)
+
+        loading = Gtk.Label(label="Scanning...")
+        box.append(loading)
+        while Gtk.events_pending():
+            Gtk.main_iteration()
+
+        large_files = []
+        for root, _, files in os.walk("/"):
+            for f in files:
+                try:
+                    fp = os.path.join(root, f)
+                    size = os.path.getsize(fp)
+                    if size > 100 * 1024 * 1024:
+                        large_files.append((fp, size))
+                except:
+                    pass
+
+        large_files.sort(key=lambda x: x[1], reverse=True)
+        large_files = large_files[:50]
+
+        box.remove(loading)
+
+        for fp, size in large_files:
+            row = Gtk.ListBoxRow()
+            row_box = Gtk.Box(spacing=10)
+            row_box.set_margin(8)
+            row.set_child(row_box)
+            label = Gtk.Label(label=f"{format_size(size)}\n{fp}", xalign=0)
+            label.set_hexpand(True)
+            row_box.append(label)
+            list_box.append(row)
+
+        btn_close = Gtk.Button(label="Close")
+        btn_close.connect("clicked", lambda x: dialog.close())
+        box.append(btn_close)
+
+        dialog.present()
 
     def update_app(self, btn):
         github_url = (
