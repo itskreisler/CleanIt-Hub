@@ -1,20 +1,20 @@
-import gi
 import os
+
+import gi
 
 os.environ["GSK_RENDERER"] = "cairo"
 os.environ["GDK_BACKEND"] = "x11"
-import sys
 import shutil
 import subprocess
-import math
+import sys
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk, Gdk
+from gi.repository import Gdk, Gtk
 
 APT_DIR = "/var/cache/apt/archives"
 CACHE_DIR = os.path.expanduser("~/.cache")
 TEMP_DIRS = ["/tmp", os.path.expanduser("~/.cache")]
-THUMBNAILS_DIR = os.path.expanduser(".cache/thumbnails")
+THUMBNAILS_DIR = os.path.expanduser("~/.cache/thumbnails")
 
 
 def get_folder_size(path):
@@ -303,12 +303,12 @@ class CleanItApp(Gtk.Application):
 
     def clean_selected(self, dialog):
         freed = 0
+        try:
+            subprocess.run(["apt-get", "clean"], check=True)
+        except:
+            pass
         for c, d in self.check_map.items():
             if c.get_active() and d["size"] > 0:
-                try:
-                    subprocess.run(["apt-get", "clean"], check=True)
-                except:
-                    pass
                 try:
                     if os.path.exists(d["path"]):
                         shutil.rmtree(d["path"])
@@ -331,7 +331,10 @@ class CleanItApp(Gtk.Application):
             halign=Gtk.Align.CENTER,
             valign=Gtk.Align.CENTER,
         )
-        box.set_margin(30)
+        box.set_margin_top(30)
+        box.set_margin_bottom(30)
+        box.set_margin_start(30)
+        box.set_margin_end(30)
         dialog.set_child(box)
 
         label = Gtk.Label()
@@ -372,19 +375,24 @@ class CleanItApp(Gtk.Application):
 
         loading = Gtk.Label(label="Scanning...")
         box.append(loading)
-        while Gtk.events_pending():
-            Gtk.main_iteration()
 
         large_files = []
-        for root, _, files in os.walk("/"):
-            for f in files:
-                try:
-                    fp = os.path.join(root, f)
-                    size = os.path.getsize(fp)
-                    if size > 100 * 1024 * 1024:
-                        large_files.append((fp, size))
-                except:
-                    pass
+        scan_dirs = ["/home", "/var", "/tmp", "/opt", os.path.expanduser("~")]
+        for scan_dir in scan_dirs:
+            if not os.path.exists(scan_dir):
+                continue
+            for root, dirs, files in os.walk(scan_dir):
+                dirs[:] = [
+                    d for d in dirs if d not in {".cache", "node_modules", ".local"}
+                ]
+                for f in files:
+                    try:
+                        fp = os.path.join(root, f)
+                        size = os.path.getsize(fp)
+                        if size > 100 * 1024 * 1024:
+                            large_files.append((fp, size))
+                    except:
+                        pass
 
         large_files.sort(key=lambda x: x[1], reverse=True)
         large_files = large_files[:50]
@@ -394,7 +402,10 @@ class CleanItApp(Gtk.Application):
         for fp, size in large_files:
             row = Gtk.ListBoxRow()
             row_box = Gtk.Box(spacing=10)
-            row_box.set_margin(8)
+            row_box.set_margin_top(8)
+            row_box.set_margin_bottom(8)
+            row_box.set_margin_start(8)
+            row_box.set_margin_end(8)
             row.set_child(row_box)
             label = Gtk.Label(label=f"{format_size(size)}\n{fp}", xalign=0)
             label.set_hexpand(True)
